@@ -8,4 +8,5 @@ import java.util.*
 @Repository
 interface WeeklyBoxOfficeListRepository : JpaRepository<WeeklyBoxOfficeList, String> {
     fun findByMovieCodeAndStartDateAndEndDate(movieCode: String, startDate: Date, endDate: Date): WeeklyBoxOfficeList?
+    fun getAllByStartDateAndEndDateOrderByRank(startDate: Date, endDate: Date): List<WeeklyBoxOfficeList>
 }
