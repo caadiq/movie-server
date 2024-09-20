@@ -1,24 +1,24 @@
 package com.beemer.movie.movie.entity
 
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.Id
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import java.util.Date
 
 @Entity
 @Table(name = "Movies")
 data class Movies(
     @Id
-    @Column(name = "movie_code")
+    @Column(name = "movie_code", nullable = false)
     val movieCode: String,
 
-    @Column(name = "movie_name", nullable = true)
+    @Column(name = "movie_name")
     val movieName: String?,
 
-    @Column(name = "movie_name_en", nullable = true)
+    @Column(name = "movie_name_en")
     val movieNameEn: String?,
 
-    @Column(name = "open_date", nullable = true)
-    val openDate: Date?
+    @Column(name = "open_date")
+    val openDate: Date?,
+
+    @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
+    var details: MovieDetails? = null
 )

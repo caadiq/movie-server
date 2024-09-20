@@ -26,7 +26,7 @@ enum class ErrorCode(
      * 클라이언트가 요청한 리소스를 찾을 수 없을 때 발생하는 에러 코드
      * ex) 존재하지 않는 데이터를 조회할 때
      */
-
+    MOVIE_NOT_FOUND(HttpStatus.NOT_FOUND, "영화를 찾을 수 없습니다."),
 
 
     /**

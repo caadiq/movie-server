@@ -11,4 +11,9 @@ class MoviesScheduler(private val moviesService: MoviesService) {
     fun fetchMovies() {
         moviesService.fetchMoviesFromApi()
     }
+
+    @Scheduled(cron = "0 2 0 * * *")
+    fun fetchMoviesDetails() {
+        moviesService.getMovieDetails()
+    }
 }
