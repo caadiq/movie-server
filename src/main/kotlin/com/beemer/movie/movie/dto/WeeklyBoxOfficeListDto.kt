@@ -1,16 +1,17 @@
 package com.beemer.movie.movie.dto
 
-data class DailyBoxOfficeListDto(
-    val boxOfficeResult: DailyBoxOfficeResult
+data class WeeklyBoxOfficeListDto(
+    val boxOfficeResult: WeeklyBoxOfficeResult
 )
 
-data class DailyBoxOfficeResult(
+data class WeeklyBoxOfficeResult(
     val boxofficeType: String,
     val showRange: String,
-    val dailyBoxOfficeList: List<DailyBoxOffice>
+    val yearWeekTime: String,
+    val weeklyBoxOfficeList: List<WeeklyBoxOffice>
 )
 
-data class DailyBoxOffice(
+data class WeeklyBoxOffice(
     val rnum: String,
     val rank: String,
     val rankInten: String,

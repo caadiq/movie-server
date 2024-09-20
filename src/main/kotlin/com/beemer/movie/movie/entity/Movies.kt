@@ -22,6 +22,9 @@ data class Movies(
     @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
     var details: MovieDetails? = null,
 
-    @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
-    var dailyBoxOfficeList: DailyBoxOfficeList? = null
+    @OneToMany(mappedBy = "movie", cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
+    var dailyBoxOfficeLists: MutableList<DailyBoxOfficeList> = mutableListOf(),
+
+    @OneToMany(mappedBy = "movie", cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
+    var weeklyBoxOfficeLists: MutableList<WeeklyBoxOfficeList> = mutableListOf()
 )

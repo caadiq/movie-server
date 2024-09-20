@@ -4,8 +4,8 @@ import jakarta.persistence.*
 import java.util.Date
 
 @Entity
-@Table(name = "DailyBoxOfficeList")
-data class DailyBoxOfficeList(
+@Table(name = "WeeklyBoxOfficeList")
+data class WeeklyBoxOfficeList(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
@@ -32,8 +32,11 @@ data class DailyBoxOfficeList(
     @Column(name = "audi_accumulate")
     val audiAccumulate: String,
 
-    @Column(name = "date")
-    val date: Date,
+    @Column(name = "start_date")
+    val startDate: Date,
+
+    @Column(name = "end_date")
+    val endDate: Date,
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "movie_code", insertable = false, updatable = false)

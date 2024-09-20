@@ -2,14 +2,14 @@ package com.beemer.movie.movie.service
 
 import com.beemer.movie.common.exception.CustomException
 import com.beemer.movie.common.exception.ErrorCode
-import com.beemer.movie.movie.dto.BoxOfficeMovieListDto
-import com.beemer.movie.movie.dto.DailyBoxOfficeListDto
-import com.beemer.movie.movie.dto.KMDbMovieDetailsDto
+import com.beemer.movie.movie.dto.*
 import com.beemer.movie.movie.entity.DailyBoxOfficeList
 import com.beemer.movie.movie.entity.MovieDetails
 import com.beemer.movie.movie.entity.Movies
+import com.beemer.movie.movie.entity.WeeklyBoxOfficeList
 import com.beemer.movie.movie.repository.DailyBoxOfficeListRepository
 import com.beemer.movie.movie.repository.MoviesRepository
+import com.beemer.movie.movie.repository.WeeklyBoxOfficeListRepository
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -27,6 +27,7 @@ import java.util.*
 class MoviesService(
     private val moviesRepository: MoviesRepository,
     private val dailyBoxOfficeListRepository: DailyBoxOfficeListRepository,
+    private val weeklyBoxOfficeListRepository: WeeklyBoxOfficeListRepository,
     private val webClient: WebClient
 ) {
     @Value("\${kobis.api.key}")
@@ -159,28 +160,76 @@ class MoviesService(
     }
 
     private fun saveDailyBoxOfficeList(dto: DailyBoxOfficeListDto) {
-        dailyBoxOfficeListRepository.deleteAll()
+        val yesterday = Date.from(LocalDate.now().minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
 
-        dto.boxOfficeResult.dailyBoxOfficeList.map { dailyBoxOffice ->
+        dto.boxOfficeResult.dailyBoxOfficeList.forEach { dailyBoxOffice ->
             val movies = moviesRepository.findById(dailyBoxOffice.movieCd)
                 .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
-            val today = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant())
-            val dailyBoxOfficeList = DailyBoxOfficeList(
-                dailyBoxOffice.movieCd,
-                dailyBoxOffice.rank,
-                dailyBoxOffice.rankInten,
-                dailyBoxOffice.audiCnt,
-                dailyBoxOffice.audiInten,
-                dailyBoxOffice.audiChange,
-                dailyBoxOffice.audiAcc,
-                today,
-                movies
-            )
+            val existingDailyBoxOfficeList = dailyBoxOfficeListRepository.findByMovieCodeAndDate(dailyBoxOffice.movieCd, yesterday)
 
-            movies.dailyBoxOfficeList = dailyBoxOfficeList
+            if (existingDailyBoxOfficeList == null) {
+                val dailyBoxOfficeList = DailyBoxOfficeList(
+                    movieCode = dailyBoxOffice.movieCd,
+                    date = yesterday,
+                    rank = dailyBoxOffice.rank,
+                    rankIncrement = dailyBoxOffice.rankInten,
+                    audiCount = dailyBoxOffice.audiCnt,
+                    audiIncrement = dailyBoxOffice.audiInten,
+                    audiChange = dailyBoxOffice.audiChange,
+                    audiAccumulate = dailyBoxOffice.audiAcc,
+                    movie = movies
+                )
 
-            moviesRepository.save(movies)
+                movies.dailyBoxOfficeLists.add(dailyBoxOfficeList)
+                moviesRepository.save(movies)
+            }
+        }
+    }
+
+    @Transactional
+    fun fetchWeeklyBoxOfficeListFromApi() {
+        val lastSunday = LocalDate.now().minusDays(LocalDate.now().dayOfWeek.value.toLong()).format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+        val url = "http://kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchWeeklyBoxOfficeList.json?targetDt=$lastSunday&weekGb=0&key=$kobisApiKey"
+
+        webClient.get()
+            .uri(url)
+            .retrieve()
+            .bodyToMono(WeeklyBoxOfficeListDto::class.java)
+            .subscribe { dto ->
+                if (dto.boxOfficeResult.weeklyBoxOfficeList.isNotEmpty()) {
+                    saveWeeklyBoxOfficeList(dto)
+                }
+            }
+    }
+
+    private fun saveWeeklyBoxOfficeList(dto: WeeklyBoxOfficeListDto) {
+        val lastMonday = Date.from(LocalDate.now().minusDays(LocalDate.now().dayOfWeek.value.toLong() - 6).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val lastSunday = Date.from(LocalDate.now().minusDays(LocalDate.now().dayOfWeek.value.toLong()).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        dto.boxOfficeResult.weeklyBoxOfficeList.forEach { weeklyBoxOffice ->
+            val movies = moviesRepository.findById(weeklyBoxOffice.movieCd)
+                .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
+
+            val existingWeeklyBoxOfficeList = weeklyBoxOfficeListRepository.findByMovieCodeAndStartDateAndEndDate(weeklyBoxOffice.movieCd, lastMonday, lastSunday)
+
+            if (existingWeeklyBoxOfficeList == null) {
+                val weeklyBoxOfficeList = WeeklyBoxOfficeList(
+                    movieCode = weeklyBoxOffice.movieCd,
+                    startDate = lastMonday,
+                    endDate = lastSunday,
+                    rank = weeklyBoxOffice.rank,
+                    rankIncrement = weeklyBoxOffice.rankInten,
+                    audiCount = weeklyBoxOffice.audiCnt,
+                    audiIncrement = weeklyBoxOffice.audiInten,
+                    audiChange = weeklyBoxOffice.audiChange,
+                    audiAccumulate = weeklyBoxOffice.audiAcc,
+                    movie = movies
+                )
+
+                movies.weeklyBoxOfficeLists.add(weeklyBoxOfficeList)
+                moviesRepository.save(movies)
+            }
         }
     }
 }
