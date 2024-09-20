@@ -20,5 +20,8 @@ data class Movies(
     val openDate: Date?,
 
     @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
-    var details: MovieDetails? = null
+    var details: MovieDetails? = null,
+
+    @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
+    var dailyBoxOfficeList: DailyBoxOfficeList? = null
 )
