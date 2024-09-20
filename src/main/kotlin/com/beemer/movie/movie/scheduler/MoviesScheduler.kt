@@ -21,4 +21,9 @@ class MoviesScheduler(private val moviesService: MoviesService) {
     fun fetchDailyBoxOfficeList() {
         moviesService.fetchDailyBoxOfficeListFromApi()
     }
+
+    @Scheduled(cron = "0 5 0 * * MON")
+    fun fetchWeeklyBoxOfficeList() {
+        moviesService.fetchWeeklyBoxOfficeListFromApi()
+    }
 }
