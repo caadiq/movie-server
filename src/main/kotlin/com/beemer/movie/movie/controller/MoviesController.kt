@@ -1,6 +1,7 @@
 package com.beemer.movie.movie.controller
 
 import com.beemer.movie.movie.dto.DailyRankListDto
+import com.beemer.movie.movie.dto.ReleaseListDto
 import com.beemer.movie.movie.dto.WeeklyRankListDto
 import com.beemer.movie.movie.service.MoviesService
 import org.springframework.http.ResponseEntity
@@ -26,5 +27,19 @@ class MoviesController(private val moviesService: MoviesService) {
         @RequestParam endDate: String
     ) : ResponseEntity<List<WeeklyRankListDto>> {
         return moviesService.getWeeklyRank(startDate, endDate)
+    }
+
+    @GetMapping("/release/latest")
+    fun getLatestRelease(
+        @RequestParam limit: Int
+    ) : ResponseEntity<List<ReleaseListDto>> {
+        return moviesService.getLatestRelease(limit)
+    }
+
+    @GetMapping("/release/coming")
+    fun getComingRelease(
+        @RequestParam limit: Int
+    ) : ResponseEntity<List<ReleaseListDto>> {
+        return moviesService.getComingRelease(limit)
     }
 }

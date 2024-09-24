@@ -8,5 +8,6 @@ import java.util.*
 @Repository
 interface MoviesRepository : JpaRepository<Movies, String> {
     fun findByOpenDateAfter(openDate: Date): List<Movies>
-//    fun findByOpenDateBetween(startDate: Date, endDate: Date): List<Movies>
+    fun findByOpenDateBetweenOrderByOpenDateDesc(startDate: Date, endDate: Date): List<Movies>
+    fun findByOpenDateAfterOrderByOpenDate(openDate: Date): List<Movies>
 }
