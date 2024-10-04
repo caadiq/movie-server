@@ -13,4 +13,6 @@ interface DailyBoxOfficeListRepository : JpaRepository<DailyBoxOfficeList, Strin
 
     @Query("SELECT d FROM DailyBoxOfficeList d WHERE d.date = :date ORDER BY CAST(d.rank AS int)")
     fun getAllByDateOrderByRank(@Param("date") date: Date): List<DailyBoxOfficeList>
+
+    fun findAllByDate(date: Date): List<DailyBoxOfficeList>
 }

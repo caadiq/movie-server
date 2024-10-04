@@ -3,10 +3,7 @@ package com.beemer.movie.movie.service
 import com.beemer.movie.common.exception.CustomException
 import com.beemer.movie.common.exception.ErrorCode
 import com.beemer.movie.movie.dto.*
-import com.beemer.movie.movie.entity.DailyBoxOfficeList
-import com.beemer.movie.movie.entity.MovieDetails
-import com.beemer.movie.movie.entity.Movies
-import com.beemer.movie.movie.entity.WeeklyBoxOfficeList
+import com.beemer.movie.movie.entity.*
 import com.beemer.movie.movie.repository.DailyBoxOfficeListRepository
 import com.beemer.movie.movie.repository.MoviesRepository
 import com.beemer.movie.movie.repository.WeeklyBoxOfficeListRepository
@@ -19,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.reactive.function.client.WebClient
 import java.text.SimpleDateFormat
 import java.time.LocalDate
+import java.time.Year
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -36,109 +34,119 @@ class MoviesApiService(
     @Value("\${kmdb.api.key}")
     private lateinit var kmdbApiKey: String
 
-//    @Transactional
-//    fun getMoviesFromApi() {
-//        fetchMoviesFromApi(1)
-//    }
-//
-//    private fun fetchMoviesFromApi(page: Int) {
-//        val url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieList.json?openStartDt=$year&openEndDt=$year&itemPerPage=50&curPage=$page&key=$kobisApiKey"
-//
-//        webClient.get()
-//            .uri(url)
-//            .retrieve()
-//            .bodyToMono(BoxOfficeMovieListDto::class.java)
-//            .subscribe { dto ->
-//                if (dto.movieListResult.movieList.isNotEmpty()) {
-//                    saveMovies(dto)
-//                    fetchMoviesFromApi(page + 1)
-//                }
-//            }
-//    }
-
     @Transactional
-    fun fetchMoviesFromApi() {
-        //    val year = 2020
+    fun fetchMoviesFromApi(page: Int) {
         val currentYear = LocalDate.now().year
-        val url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieList.json?openStartDt=$currentYear&itemPerPage=30&key=$kobisApiKey"
+        val url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieList.json?openStartDt=$currentYear&itemPerPage=100&curPage=$page&key=$kobisApiKey"
 
         webClient.get()
             .uri(url)
             .retrieve()
             .bodyToMono(BoxOfficeMovieListDto::class.java)
-            .subscribe { dto ->
+            .subscribe({ dto ->
                 if (dto.movieListResult.movieList.isNotEmpty()) {
                     saveMovies(dto)
+                    println("영화 목록 요청 : $url")
                 }
-            }
+                fetchMoviesFromApi(page + 1)
+            }, { error ->
+                fetchMoviesFromApi(page + 1)
+            })
     }
 
     private fun saveMovies(dto: BoxOfficeMovieListDto) {
         val movies = dto.movieListResult.movieList.map { movie ->
-            val openDate = SimpleDateFormat("yyyyMMdd").parse(movie.openDt)
-            Movies(movie.movieCd, movie.movieNm, movie.movieNmEn, openDate)
+            Movies(
+                movieCode = movie.movieCd,
+                movieName = movie.movieNm,
+                movieNameEn = movie.movieNmEn
+            )
         }
         moviesRepository.saveAll(movies)
     }
 
     @Transactional
-    fun fetchMovieDetailsFromApi() {
-        val today = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant())
-        val movies = moviesRepository.findByOpenDateAfter(today)
+    fun fetchMovieDetails1FromApi(movieCode: String) {
+        moviesRepository.findById(movieCode)
+            .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
-//        val startDate = SimpleDateFormat("yyyyMMdd").parse("20200101")
-//        val endDate = SimpleDateFormat("yyyyMMdd").parse("20201231")
-//
-//        val movies = moviesRepository.findByOpenDateBetween(startDate, endDate)
+        val url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieInfo.json?movieCd=$movieCode&key=$kobisApiKey"
 
-        movies.forEach { movie ->
-            if (movie.details == null) {
-                val movieCode = movie.movieCode
-                val movieName = movie.movieName
-                val openDate = SimpleDateFormat("yyyyMMdd").format(movie.openDate)
-                val url = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName&releaseDts=$openDate&ServiceKey=$kmdbApiKey"
+        webClient.get()
+            .uri(url)
+            .retrieve()
+            .bodyToMono(KobisMovieDetailsDto::class.java)
+            .subscribe ({ dto ->
+                saveMovieDetails1(dto)
+            }, { error ->
+                println("Error: $movieCode : ${error.message}")
+            })
+    }
 
-                webClient.get()
-                    .uri(url)
-                    .retrieve()
-                    .bodyToMono(String::class.java)
-                    .subscribe { responseBody ->
-                        val objectMapper = jacksonObjectMapper()
-                        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    private fun saveMovieDetails1(dto: KobisMovieDetailsDto) {
+        dto.movieInfoResult.movieInfo.let { movie ->
+            val movies = moviesRepository.findById(movie.movieCd)
+                .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
-                        val dto: KMDbMovieDetailsDto = objectMapper.readValue(responseBody)
+            val movieDetails1 = MovieDetails1(
+                movieCode = movie.movieCd,
+                productYear = Year.of(movie.prdtYear.toInt()),
+                genre = if (movie.genres.isNotEmpty()) movie.genres.joinToString(",") { it.genreNm } else null,
+                openDate = if (movie.openDt.isNotEmpty()) SimpleDateFormat("yyyyMMdd").parse(movie.openDt) else null,
+                runtime = if (movie.showTm.isNotEmpty()) movie.showTm.toInt() else null,
+                grade = if (movie.audits.isNotEmpty() && movie.audits[0].watchGradeNm.isNotEmpty()) movie.audits[0].watchGradeNm else null,
+                movie = movies,
+            )
 
-                        if (dto.Data.isNotEmpty()) {
-                            saveMovieDetails(movieCode, dto)
-                        }
-                    }
-            }
+            movies.details1 = movieDetails1
+            moviesRepository.save(movies)
         }
     }
 
-    private fun saveMovieDetails(movieCode: String, dto: KMDbMovieDetailsDto) {
+    @Transactional
+    fun fetchMovieDetails2FromApi(movieCode: String) {
+        val movie = moviesRepository.findById(movieCode)
+            .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
+
+        val movieName = movie.movieName
+        val openDate = movie.details1?.openDate?.let { SimpleDateFormat("yyyyMMdd").format(it) }
+
+        val url = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName&releaseDts=$openDate&ServiceKey=$kmdbApiKey"
+
+        webClient.get()
+            .uri(url)
+            .retrieve()
+            .bodyToMono(String::class.java)
+            .subscribe { responseBody ->
+                val objectMapper = jacksonObjectMapper()
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
+                val dto: KMDbMovieDetailsDto = objectMapper.readValue(responseBody)
+
+                if (dto.Data.isNotEmpty()) {
+                    saveMovieDetails2(movieCode, dto)
+                }
+            }
+    }
+
+    private fun saveMovieDetails2(movieCode: String, dto: KMDbMovieDetailsDto) {
         dto.Data[0].Result?.get(0)?.let { movie ->
             val movies = moviesRepository.findById(movieCode)
                 .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
-            val movieDetails = MovieDetails(
+            val movieDetails2 = MovieDetails2(
                 movieCode,
-                movie.runtime,
                 movie.nation,
                 movie.company,
-                movie.prodYear,
                 movie.plots.plot[0].plotText,
                 movie.genre,
                 movie.rating,
-                movie.directors.director.joinToString(", ") { it.directorNm },
-                movie.actors.actor.joinToString(", ") { it.actorNm },
                 movie.posters,
                 movie.keywords,
                 movies
             )
 
-            movies.details = movieDetails
-
+            movies.details2 = movieDetails2
             moviesRepository.save(movies)
         }
     }
@@ -172,7 +180,7 @@ class MoviesApiService(
                 val dailyBoxOfficeList = DailyBoxOfficeList(
                     movieCode = dailyBoxOffice.movieCd,
                     date = yesterday,
-                    rank = dailyBoxOffice.rank,
+                    rank = dailyBoxOffice.rank.toInt(),
                     rankIncrement = dailyBoxOffice.rankInten,
                     audiCount = dailyBoxOffice.audiCnt,
                     audiIncrement = dailyBoxOffice.audiInten,
@@ -219,7 +227,7 @@ class MoviesApiService(
                     movieCode = weeklyBoxOffice.movieCd,
                     startDate = lastMonday,
                     endDate = lastSunday,
-                    rank = weeklyBoxOffice.rank,
+                    rank = weeklyBoxOffice.rank.toInt(),
                     rankIncrement = weeklyBoxOffice.rankInten,
                     audiCount = weeklyBoxOffice.audiCnt,
                     audiIncrement = weeklyBoxOffice.audiInten,
@@ -231,6 +239,50 @@ class MoviesApiService(
                 movies.weeklyBoxOfficeLists.add(weeklyBoxOfficeList)
                 moviesRepository.save(movies)
             }
+        }
+    }
+
+    fun getDailyBoxOfficeDetails1() {
+        val yesterday = Date.from(LocalDate.now().minusDays(2).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val movies = dailyBoxOfficeListRepository.findAllByDate(yesterday)
+
+        movies.forEach {
+            fetchMovieDetails1FromApi(it.movieCode)
+        }
+    }
+
+    fun getDailyBoxOfficeDetails2() {
+        val yesterday = Date.from(LocalDate.now().minusDays(2).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val movies = dailyBoxOfficeListRepository.findAllByDate(yesterday)
+
+        movies.forEach {
+            fetchMovieDetails2FromApi(it.movieCode)
+        }
+    }
+
+    fun getWeeklyBoxOfficeDetails1() {
+        val today = LocalDate.now()
+        val lastSunday = Date.from(today.minusDays(today.dayOfWeek.value.toLong()).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val lastMonday = Date.from(today.minusDays(today.dayOfWeek.value.toLong() + 6).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val movies = weeklyBoxOfficeListRepository.findAllByStartDateAndEndDateOrderByRank(lastMonday, lastSunday)
+
+        movies.forEach {
+            fetchMovieDetails1FromApi(it.movieCode)
+        }
+    }
+
+    fun getWeeklyBoxOfficeDetails2() {
+        val today = LocalDate.now()
+        val lastSunday = Date.from(today.minusDays(today.dayOfWeek.value.toLong()).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val lastMonday = Date.from(today.minusDays(today.dayOfWeek.value.toLong() + 6).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val movies = weeklyBoxOfficeListRepository.findAllByStartDateAndEndDateOrderByRank(lastMonday, lastSunday)
+
+        movies.forEach {
+            fetchMovieDetails2FromApi(it.movieCode)
         }
     }
 }

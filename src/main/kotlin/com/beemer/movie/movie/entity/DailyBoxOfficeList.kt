@@ -15,7 +15,7 @@ data class DailyBoxOfficeList(
     val movieCode: String,
 
     @Column(name = "rank")
-    val rank: String,
+    val rank: Int,
 
     @Column(name = "rank_increment")
     val rankIncrement: String,

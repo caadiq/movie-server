@@ -10,26 +10,32 @@ class MoviesApiScheduler(private val moviesApiService: MoviesApiService) {
 
     @PostConstruct
     fun init() {
-        fetchMoviesDetails()
+//        fetchMovies()
+//        fetchBoxOfficeList()
+//        fetchBoxOfficeDetails1()
+//        fetchBoxOfficeDetails2()
     }
 
     @Scheduled(cron = "0 0 0 * * *")
     fun fetchMovies() {
-        moviesApiService.fetchMoviesFromApi()
+        moviesApiService.fetchMoviesFromApi(1)
     }
 
-    @Scheduled(cron = "0 2 0 * * *")
-    fun fetchMoviesDetails() {
-        moviesApiService.fetchMovieDetailsFromApi()
+    @Scheduled(cron = "0 3 0 * * *")
+    fun fetchBoxOfficeList() {
+        moviesApiService.fetchDailyBoxOfficeListFromApi()
+        moviesApiService.fetchWeeklyBoxOfficeListFromApi()
     }
 
     @Scheduled(cron = "0 5 0 * * *")
-    fun fetchDailyBoxOfficeList() {
-        moviesApiService.fetchDailyBoxOfficeListFromApi()
+    fun fetchBoxOfficeDetails1() {
+        moviesApiService.getDailyBoxOfficeDetails1()
+        moviesApiService.getWeeklyBoxOfficeDetails1()
     }
 
-    @Scheduled(cron = "0 5 0 * * MON")
-    fun fetchWeeklyBoxOfficeList() {
-        moviesApiService.fetchWeeklyBoxOfficeListFromApi()
+    @Scheduled(cron = "30 5 0 * * *")
+    fun fetchBoxOfficeDetails2() {
+        moviesApiService.getDailyBoxOfficeDetails2()
+        moviesApiService.getWeeklyBoxOfficeDetails2()
     }
 }

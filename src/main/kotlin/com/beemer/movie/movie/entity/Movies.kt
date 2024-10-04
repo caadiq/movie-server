@@ -1,7 +1,6 @@
 package com.beemer.movie.movie.entity
 
 import jakarta.persistence.*
-import java.util.Date
 
 @Entity
 @Table(name = "Movies")
@@ -16,11 +15,11 @@ data class Movies(
     @Column(name = "movie_name_en")
     val movieNameEn: String?,
 
-    @Column(name = "open_date")
-    val openDate: Date?,
+    @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
+    var details1: MovieDetails1? = null,
 
     @OneToOne(mappedBy = "movie", cascade = [CascadeType.ALL])
-    var details: MovieDetails? = null,
+    var details2: MovieDetails2? = null,
 
     @OneToMany(mappedBy = "movie", cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
     var dailyBoxOfficeLists: MutableList<DailyBoxOfficeList> = mutableListOf(),
