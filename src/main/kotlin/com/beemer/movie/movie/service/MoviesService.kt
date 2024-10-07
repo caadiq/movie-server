@@ -1,6 +1,7 @@
 package com.beemer.movie.movie.service
 
 import com.beemer.movie.movie.dto.RankListDto
+import com.beemer.movie.movie.dto.ReleaseListDto
 import com.beemer.movie.movie.repository.DailyBoxOfficeListRepository
 import com.beemer.movie.movie.repository.MoviesRepository
 import com.beemer.movie.movie.repository.WeeklyBoxOfficeListRepository
@@ -63,38 +64,37 @@ class MoviesService(
         return ResponseEntity.status(HttpStatus.OK).body(weeklyRankListDto)
     }
 
-//
-//    fun getRecentRelease(limit: Int) : ResponseEntity<List<ReleaseListDto>> {
-//        val startDate = Date.from(LocalDate.now().minusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant())
-//        val endDate = Date()
-//
-//        val movies = moviesRepository.findByOpenDateBetweenOrderByOpenDateDesc(startDate, endDate)
-//
-//        val releaseListDto = movies.map { movie ->
-//            ReleaseListDto(
-//                movieCode = movie.movieCode,
-//                movieName = movie.movieName ?: "",
-//                posterUrl = movie.details?.posterUrl?.split("|")?.firstOrNull() ?: "",
-//                releaseDate = movie.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
-//            )
-//        }
-//
-//        return ResponseEntity.status(HttpStatus.OK).body(releaseListDto.take(limit))
-//    }
-//
-//    fun getComingRelease(limit: Int) : ResponseEntity<List<ReleaseListDto>> {
-//        val startDate = Date()
-//        val movies = moviesRepository.findByOpenDateAfterOrderByOpenDate(startDate)
-//
-//        val releaseListDto = movies.map { movie ->
-//            ReleaseListDto(
-//                movieCode = movie.movieCode,
-//                movieName = movie.movieName ?: "",
-//                posterUrl = movie.details?.posterUrl?.split("|")?.firstOrNull() ?: "",
-//                releaseDate = movie.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
-//            )
-//        }
-//
-//        return ResponseEntity.status(HttpStatus.OK).body(releaseListDto.take(limit))
-//    }
+    fun getRecentRelease(limit: Int) : ResponseEntity<List<ReleaseListDto>> {
+        val startDate = Date.from(LocalDate.now().minusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val endDate = Date()
+
+        val movies = moviesRepository.findByOpenDateBetweenOrderByOpenDateDesc(startDate, endDate)
+
+        val releaseListDto = movies.map { movie ->
+            ReleaseListDto(
+                movieCode = movie.movieCode,
+                movieName = movie.movieName ?: "",
+                posterUrl = movie.details2?.posterUrl?.split("|")?.firstOrNull() ?: "",
+                releaseDate = movie.details1?.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+            )
+        }
+
+        return ResponseEntity.status(HttpStatus.OK).body(releaseListDto.take(limit))
+    }
+
+    fun getComingRelease(limit: Int) : ResponseEntity<List<ReleaseListDto>> {
+        val startDate = Date()
+        val movies = moviesRepository.findByOpenDateAfterOrderByOpenDate(startDate)
+
+        val releaseListDto = movies.map { movie ->
+            ReleaseListDto(
+                movieCode = movie.movieCode,
+                movieName = movie.movieName ?: "",
+                posterUrl = movie.details2?.posterUrl?.split("|")?.firstOrNull() ?: "",
+                releaseDate = movie.details1?.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+            )
+        }
+
+        return ResponseEntity.status(HttpStatus.OK).body(releaseListDto.take(limit))
+    }
 }

@@ -1,7 +1,7 @@
 package com.beemer.movie.movie.dto
 
 data class KobisMovieDetailsDto(
-    val movieInfoResult: MovieInfoResult
+    val movieInfoResult: MovieInfoResult?
 )
 
 data class MovieInfoResult(

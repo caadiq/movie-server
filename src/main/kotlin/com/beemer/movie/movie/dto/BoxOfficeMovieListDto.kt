@@ -1,7 +1,7 @@
 package com.beemer.movie.movie.dto
 
 data class BoxOfficeMovieListDto(
-    val movieListResult: MovieListResult
+    val movieListResult: MovieListResult?
 )
 
 data class MovieListResult(

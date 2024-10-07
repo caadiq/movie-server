@@ -23,11 +23,11 @@ class WebClientConfig {
             .build()
 
         val httpClient = HttpClient.create(connectionProvider)
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000) // 연결 타임아웃
             .doOnConnected { conn ->
                 conn.addHandlerLast(ReadTimeoutHandler(60))
             }
-            .responseTimeout(Duration.ofMinutes(30))
+            .responseTimeout(Duration.ofSeconds(60)) // 응답 타임아웃
 
         val exchangeStrategies = ExchangeStrategies.builder()
             .codecs { configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024) }

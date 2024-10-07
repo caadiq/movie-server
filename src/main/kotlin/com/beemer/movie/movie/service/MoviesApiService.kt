@@ -7,9 +7,11 @@ import com.beemer.movie.movie.entity.*
 import com.beemer.movie.movie.repository.DailyBoxOfficeListRepository
 import com.beemer.movie.movie.repository.MoviesRepository
 import com.beemer.movie.movie.repository.WeeklyBoxOfficeListRepository
+import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -34,6 +36,13 @@ class MoviesApiService(
     @Value("\${kmdb.api.key}")
     private lateinit var kmdbApiKey: String
 
+    private val logger = LoggerFactory.getLogger(MoviesApiService::class.java)
+
+    private val objectMapper = jacksonObjectMapper().apply {
+        configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true)
+        configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    }
+
     @Transactional
     fun fetchMoviesFromApi(page: Int) {
         val currentYear = LocalDate.now().year
@@ -44,62 +53,85 @@ class MoviesApiService(
             .retrieve()
             .bodyToMono(BoxOfficeMovieListDto::class.java)
             .subscribe({ dto ->
-                if (dto.movieListResult.movieList.isNotEmpty()) {
-                    saveMovies(dto)
-                    println("영화 목록 요청 : $url")
+                dto.movieListResult?.let {
+                    if (it.movieList.isNotEmpty()) {
+                        saveMovies(dto)
+                    }
                 }
-                fetchMoviesFromApi(page + 1)
+//                fetchMoviesFromApi(page + 1)
             }, { error ->
-                fetchMoviesFromApi(page + 1)
+                logger.error("[오류] fetchMoviesFromApi : ${error.message}")
+//                fetchMoviesFromApi(page + 1)
             })
     }
 
     private fun saveMovies(dto: BoxOfficeMovieListDto) {
-        val movies = dto.movieListResult.movieList.map { movie ->
+        val movies = dto.movieListResult?.movieList?.map { movie ->
             Movies(
                 movieCode = movie.movieCd,
                 movieName = movie.movieNm,
                 movieNameEn = movie.movieNmEn
             )
+        } ?: emptyList()
+
+        if (movies.isNotEmpty()) {
+            moviesRepository.saveAll(movies)
         }
-        moviesRepository.saveAll(movies)
+
+        movies.forEach{ movie ->
+            fetchMovieDetails1FromApi(movie.movieCode)
+            fetchMovieDetails2FromApi(movie.movieCode)
+        }
+    }
+
+    fun getMovieDetails() {
+        val movies = moviesRepository.findAllByMovieCodeLike("2024%")
+
+        movies.forEach {
+            fetchMovieDetails1FromApi(it.movieCode)
+            fetchMovieDetails2FromApi(it.movieCode)
+        }
     }
 
     @Transactional
     fun fetchMovieDetails1FromApi(movieCode: String) {
-        moviesRepository.findById(movieCode)
+        val movie = moviesRepository.findById(movieCode)
             .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
-        val url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieInfo.json?movieCd=$movieCode&key=$kobisApiKey"
+        if (movie.details1 == null) {
+            val url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieInfo.json?movieCd=$movieCode&key=$kobisApiKey"
 
-        webClient.get()
-            .uri(url)
-            .retrieve()
-            .bodyToMono(KobisMovieDetailsDto::class.java)
-            .subscribe ({ dto ->
-                saveMovieDetails1(dto)
-            }, { error ->
-                println("Error: $movieCode : ${error.message}")
-            })
+            webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(KobisMovieDetailsDto::class.java)
+                .subscribe({ dto ->
+                    saveMovieDetails1(dto)
+                }, { error ->
+                    logger.error("[오류] fetchMovieDetails1FromApi : ${error.message}")
+                })
+        }
     }
 
     private fun saveMovieDetails1(dto: KobisMovieDetailsDto) {
-        dto.movieInfoResult.movieInfo.let { movie ->
-            val movies = moviesRepository.findById(movie.movieCd)
-                .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
+        dto.movieInfoResult?.let {
+            it.movieInfo.let { movie ->
+                val movies = moviesRepository.findById(movie.movieCd)
+                    .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
-            val movieDetails1 = MovieDetails1(
-                movieCode = movie.movieCd,
-                productYear = Year.of(movie.prdtYear.toInt()),
-                genre = if (movie.genres.isNotEmpty()) movie.genres.joinToString(",") { it.genreNm } else null,
-                openDate = if (movie.openDt.isNotEmpty()) SimpleDateFormat("yyyyMMdd").parse(movie.openDt) else null,
-                runtime = if (movie.showTm.isNotEmpty()) movie.showTm.toInt() else null,
-                grade = if (movie.audits.isNotEmpty() && movie.audits[0].watchGradeNm.isNotEmpty()) movie.audits[0].watchGradeNm else null,
-                movie = movies,
-            )
+                val movieDetails1 = MovieDetails1(
+                    movieCode = movie.movieCd,
+                    productYear = Year.of(movie.prdtYear.toInt()),
+                    genre = if (movie.genres.isNotEmpty()) movie.genres.joinToString(",") { it.genreNm } else null,
+                    openDate = if (movie.openDt.isNotEmpty()) SimpleDateFormat("yyyyMMdd").parse(movie.openDt) else null,
+                    runtime = if (movie.showTm.isNotEmpty()) movie.showTm.toInt() else null,
+                    grade = if (movie.audits.isNotEmpty() && movie.audits[0].watchGradeNm.isNotEmpty()) movie.audits[0].watchGradeNm else null,
+                    movie = movies,
+                )
 
-            movies.details1 = movieDetails1
-            moviesRepository.save(movies)
+                movies.details1 = movieDetails1
+                moviesRepository.save(movies)
+            }
         }
     }
 
@@ -109,24 +141,52 @@ class MoviesApiService(
             .orElseThrow { throw CustomException(ErrorCode.MOVIE_NOT_FOUND) }
 
         val movieName = movie.movieName
-        val openDate = movie.details1?.openDate?.let { SimpleDateFormat("yyyyMMdd").format(it) }
+        val movieNameEn = movie.movieNameEn
 
-        val url = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName&releaseDts=$openDate&ServiceKey=$kmdbApiKey"
+        val url = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName&ServiceKey=$kmdbApiKey"
+        val urlEn = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieNameEn&ServiceKey=$kmdbApiKey"
 
         webClient.get()
             .uri(url)
             .retrieve()
             .bodyToMono(String::class.java)
-            .subscribe { responseBody ->
-                val objectMapper = jacksonObjectMapper()
-                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .subscribe({ responseBody ->
+                try {
+                    if (!responseBody.contains("인증키")) {
+                        val dto: KMDbMovieDetailsDto = objectMapper.readValue(responseBody.replace("\\n", "\\\\n").replace("\\t", "\\\\t"))
 
-                val dto: KMDbMovieDetailsDto = objectMapper.readValue(responseBody)
+                        if (dto.Data.isNotEmpty()) {
+                            saveMovieDetails2(movieCode, dto)
+                        } else {
+                            webClient.get()
+                                .uri(urlEn)
+                                .retrieve()
+                                .bodyToMono(String::class.java)
+                                .subscribe({ responseBodyEn ->
+                                    try {
+                                        if (!responseBodyEn.contains("인증키가")) {
+                                            val dtoEn: KMDbMovieDetailsDto = objectMapper.readValue(responseBodyEn.replace("\\n", "\\\\n").replace("\\t", "\\\\t"))
 
-                if (dto.Data.isNotEmpty()) {
-                    saveMovieDetails2(movieCode, dto)
+                                            if (dtoEn.Data.isNotEmpty()) {
+                                                saveMovieDetails2(movieCode, dtoEn)
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        logger.error("[오류] fetchMovieDetails2FromApi (EN) : ${e.message}")
+                                        logger.error("Response Body (EN): $responseBodyEn")
+                                    }
+                                }, { error ->
+                                    logger.error("[오류] fetchMovieDetails2FromApi (EN) : ${error.message}")
+                                })
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.error("[오류] fetchMovieDetails2FromApi : ${e.message}")
+                    logger.error("Response Body: $responseBody")
                 }
-            }
+            }, { error ->
+                logger.error("[오류] fetchMovieDetails2FromApi : ${error.message}")
+            })
     }
 
     private fun saveMovieDetails2(movieCode: String, dto: KMDbMovieDetailsDto) {
@@ -160,11 +220,13 @@ class MoviesApiService(
             .uri(url)
             .retrieve()
             .bodyToMono(DailyBoxOfficeListDto::class.java)
-            .subscribe { dto ->
+            .subscribe ({ dto ->
                 if (dto.boxOfficeResult.dailyBoxOfficeList.isNotEmpty()) {
                     saveDailyBoxOfficeList(dto)
                 }
-            }
+            }, { error ->
+                logger.error("[오류] fetchDailyBoxOfficeListFromApi : ${error.message}")
+            })
     }
 
     private fun saveDailyBoxOfficeList(dto: DailyBoxOfficeListDto) {
@@ -243,7 +305,7 @@ class MoviesApiService(
     }
 
     fun getDailyBoxOfficeDetails1() {
-        val yesterday = Date.from(LocalDate.now().minusDays(2).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val yesterday = Date.from(LocalDate.now().minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
 
         val movies = dailyBoxOfficeListRepository.findAllByDate(yesterday)
 
@@ -253,7 +315,7 @@ class MoviesApiService(
     }
 
     fun getDailyBoxOfficeDetails2() {
-        val yesterday = Date.from(LocalDate.now().minusDays(2).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val yesterday = Date.from(LocalDate.now().minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
 
         val movies = dailyBoxOfficeListRepository.findAllByDate(yesterday)
 

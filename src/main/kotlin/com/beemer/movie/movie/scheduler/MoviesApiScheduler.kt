@@ -10,6 +10,7 @@ class MoviesApiScheduler(private val moviesApiService: MoviesApiService) {
 
     @PostConstruct
     fun init() {
+//        moviesApiService.getMovieDetails()
 //        fetchMovies()
 //        fetchBoxOfficeList()
 //        fetchBoxOfficeDetails1()
