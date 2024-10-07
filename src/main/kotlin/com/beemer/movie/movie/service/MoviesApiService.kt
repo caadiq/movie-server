@@ -21,7 +21,7 @@ import java.time.LocalDate
 import java.time.Year
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.*
+import java.util.Date
 
 @Service
 class MoviesApiService(

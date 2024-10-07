@@ -1,5 +1,7 @@
 package com.beemer.movie.movie.service
 
+import com.beemer.movie.movie.dto.PosterBannerDto
+import com.beemer.movie.movie.dto.RankList
 import com.beemer.movie.movie.dto.RankListDto
 import com.beemer.movie.movie.dto.ReleaseListDto
 import com.beemer.movie.movie.repository.DailyBoxOfficeListRepository
@@ -18,12 +20,35 @@ class MoviesService(
     private val weeklyBoxOfficeListRepository: WeeklyBoxOfficeListRepository,
     private val moviesRepository: MoviesRepository
 ) {
-    fun getDailyRank(date: String): ResponseEntity<List<RankListDto>> {
+    fun getPosterBanner(): ResponseEntity<List<PosterBannerDto>> {
+        val yesterday = Date.from(LocalDate.now().minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val dailyRankList = dailyBoxOfficeListRepository.findAllByDateOrderByRank(yesterday)
+
+        val posterBannerDto = dailyRankList.map { dailyBoxOffice ->
+            PosterBannerDto(
+                movieCode = dailyBoxOffice.movieCode,
+                posterUrl = dailyBoxOffice.movie.details2?.posterUrl?.split("|")?.firstOrNull() ?: ""
+            )
+        }.shuffled().take(5)
+
+        return ResponseEntity.status(HttpStatus.OK).body(posterBannerDto)
+    }
+
+    fun getDailyRank(date: String): ResponseEntity<RankListDto> {
         val dateFormatted = Date.from(LocalDate.parse(date).atStartOfDay(ZoneId.systemDefault()).toInstant())
-        val dailyRankList = dailyBoxOfficeListRepository.getAllByDateOrderByRank(dateFormatted)
+        val dailyRankList = dailyBoxOfficeListRepository.findAllByDateOrderByRank(dateFormatted)
+
+        val prevDate = Date.from(LocalDate.parse(date).minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val nextDate = Date.from(LocalDate.parse(date).plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val dateDto = com.beemer.movie.movie.dto.Date(
+            prevDate = dailyBoxOfficeListRepository.findAllByDateOrderByRank(prevDate).firstOrNull()?.date?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate(),
+            currenetDate = dateFormatted.toInstant().atZone(ZoneId.systemDefault()).toLocalDate(),
+            nextDate = dailyBoxOfficeListRepository.findAllByDateOrderByRank(nextDate).firstOrNull()?.date?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+        )
 
         val dailyRankListDto = dailyRankList.map { dailyBoxOffice ->
-            RankListDto(
+            RankList(
                 movieCode = dailyBoxOffice.movieCode,
                 movieName = dailyBoxOffice.movie.movieName ?: "",
                 posterUrl = dailyBoxOffice.movie.details2?.posterUrl?.split("|")?.firstOrNull() ?: "",
@@ -37,17 +62,27 @@ class MoviesService(
             )
         }
 
-        return ResponseEntity.status(HttpStatus.OK).body(dailyRankListDto)
+        return ResponseEntity.status(HttpStatus.OK).body(RankListDto(dateDto, dailyRankListDto))
     }
 
-    fun getWeeklyRank(startDate: String, endDate: String): ResponseEntity<List<RankListDto>> {
+    fun getWeeklyRank(startDate: String, endDate: String): ResponseEntity<RankListDto> {
         val startDateFormatted = Date.from(LocalDate.parse(startDate).atStartOfDay(ZoneId.systemDefault()).toInstant())
         val endDateFormatted = Date.from(LocalDate.parse(endDate).atStartOfDay(ZoneId.systemDefault()).toInstant())
-
         val weeklyRankList = weeklyBoxOfficeListRepository.findAllByStartDateAndEndDateOrderByRank(startDateFormatted, endDateFormatted)
 
+        val prevStartDate = Date.from(LocalDate.parse(startDate).minusWeeks(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val prevEndDate = Date.from(LocalDate.parse(endDate).minusWeeks(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val nextStartDate = Date.from(LocalDate.parse(startDate).plusWeeks(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val nextEndDate = Date.from(LocalDate.parse(endDate).plusWeeks(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val dateDto = com.beemer.movie.movie.dto.Date(
+            prevDate = weeklyBoxOfficeListRepository.findAllByStartDateAndEndDateOrderByRank(prevStartDate, prevEndDate).firstOrNull()?.startDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate(),
+            currenetDate = startDateFormatted.toInstant().atZone(ZoneId.systemDefault()).toLocalDate(),
+            nextDate = weeklyBoxOfficeListRepository.findAllByStartDateAndEndDateOrderByRank(nextStartDate, nextEndDate).firstOrNull()?.startDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+        )
+
         val weeklyRankListDto = weeklyRankList.map { weeklyBoxOffice ->
-            RankListDto(
+            RankList(
                 movieCode = weeklyBoxOffice.movieCode,
                 movieName = weeklyBoxOffice.movie.movieName ?: "",
                 genre = weeklyBoxOffice.movie.details1?.genre ?: "",
@@ -61,7 +96,7 @@ class MoviesService(
             )
         }
 
-        return ResponseEntity.status(HttpStatus.OK).body(weeklyRankListDto)
+        return ResponseEntity.status(HttpStatus.OK).body(RankListDto(dateDto, weeklyRankListDto))
     }
 
     fun getRecentRelease(limit: Int) : ResponseEntity<List<ReleaseListDto>> {

@@ -1,5 +1,6 @@
 package com.beemer.movie.movie.controller
 
+import com.beemer.movie.movie.dto.PosterBannerDto
 import com.beemer.movie.movie.dto.RankListDto
 import com.beemer.movie.movie.dto.ReleaseListDto
 import com.beemer.movie.movie.service.MoviesService
@@ -13,10 +14,15 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/movie")
 class MoviesController(private val moviesService: MoviesService) {
 
+    @GetMapping("/poster/banner")
+    fun getPosterBanner() : ResponseEntity<List<PosterBannerDto>> {
+        return moviesService.getPosterBanner()
+    }
+
     @GetMapping("/rank/daily")
     fun getDailyRank(
         @RequestParam date: String
-    ) : ResponseEntity<List<RankListDto>> {
+    ) : ResponseEntity<RankListDto> {
         return moviesService.getDailyRank(date)
     }
 
@@ -24,7 +30,7 @@ class MoviesController(private val moviesService: MoviesService) {
     fun getWeeklyRank(
         @RequestParam startDate: String,
         @RequestParam endDate: String
-    ) : ResponseEntity<List<RankListDto>> {
+    ) : ResponseEntity<RankListDto> {
         return moviesService.getWeeklyRank(startDate, endDate)
     }
 
