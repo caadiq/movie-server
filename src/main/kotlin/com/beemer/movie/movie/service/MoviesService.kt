@@ -1,12 +1,18 @@
 package com.beemer.movie.movie.service
 
+import com.beemer.movie.common.dto.PageDto
+import com.beemer.movie.common.exception.CustomException
+import com.beemer.movie.common.exception.ErrorCode
 import com.beemer.movie.movie.dto.PosterBannerDto
 import com.beemer.movie.movie.dto.RankList
 import com.beemer.movie.movie.dto.RankListDto
 import com.beemer.movie.movie.dto.ReleaseListDto
+import com.beemer.movie.movie.dto.SearchList
+import com.beemer.movie.movie.dto.SearchListDto
 import com.beemer.movie.movie.repository.DailyBoxOfficeListRepository
 import com.beemer.movie.movie.repository.MoviesRepository
 import com.beemer.movie.movie.repository.WeeklyBoxOfficeListRepository
+import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
@@ -18,7 +24,8 @@ import java.util.*
 class MoviesService(
     private val dailyBoxOfficeListRepository: DailyBoxOfficeListRepository,
     private val weeklyBoxOfficeListRepository: WeeklyBoxOfficeListRepository,
-    private val moviesRepository: MoviesRepository
+    private val moviesRepository: MoviesRepository,
+    private val moviesApiService: MoviesApiService
 ) {
     fun getPosterBanner(): ResponseEntity<List<PosterBannerDto>> {
         val yesterday = Date.from(LocalDate.now().minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
@@ -105,6 +112,16 @@ class MoviesService(
 
         val movies = moviesRepository.findByOpenDateBetweenOrderByOpenDateDesc(startDate, endDate)
 
+        movies.forEach {
+            if (it.details1 == null) {
+                moviesApiService.fetchMovieDetails1FromApi(it.movieCode)
+            }
+
+            if (it.details2 == null) {
+                moviesApiService.fetchMovieDetails2FromApi(it.movieCode)
+            }
+        }
+
         val releaseListDto = movies.map { movie ->
             ReleaseListDto(
                 movieCode = movie.movieCode,
@@ -121,6 +138,16 @@ class MoviesService(
         val startDate = Date()
         val movies = moviesRepository.findByOpenDateAfterOrderByOpenDate(startDate)
 
+        movies.forEach {
+            if (it.details1 == null) {
+                moviesApiService.fetchMovieDetails1FromApi(it.movieCode)
+            }
+
+            if (it.details2 == null) {
+                moviesApiService.fetchMovieDetails2FromApi(it.movieCode)
+            }
+        }
+
         val releaseListDto = movies.map { movie ->
             ReleaseListDto(
                 movieCode = movie.movieCode,
@@ -131,5 +158,45 @@ class MoviesService(
         }
 
         return ResponseEntity.status(HttpStatus.OK).body(releaseListDto.take(limit))
+    }
+
+    fun getMovieList(page: Int, limit: Int, query: String) : ResponseEntity<SearchListDto> {
+        val limitAdjusted = 1.coerceAtLeast(50.coerceAtMost(limit))
+        val pageable = PageRequest.of(page, limitAdjusted)
+
+        val movies = moviesRepository.findAllByMovieNameOrMovieNameEnOrGenreOrKeywords(pageable, query)
+
+        if (movies.content.isEmpty() && movies.totalElements > 0) {
+            throw CustomException(ErrorCode.MOVIE_NOT_FOUND)
+        }
+
+        movies.forEach {
+            if (it.details1 == null) {
+                moviesApiService.fetchMovieDetails1FromApi(it.movieCode)
+            }
+
+            if (it.details2 == null) {
+                moviesApiService.fetchMovieDetails2FromApi(it.movieCode)
+            }
+        }
+
+        val prevPage = if (movies.hasPrevious()) movies.number - 1 else null
+        val currentPage = movies.number
+        val nextPage = if (movies.hasNext()) movies.number + 1 else null
+
+        val pages = PageDto(prevPage, currentPage, nextPage)
+
+        val movieList = movies.content.map {
+            SearchList(
+                movieCode = it.movieCode,
+                movieName = it.movieName ?: "",
+                posterUrl = it.details2?.posterUrl?.split("|")?.firstOrNull() ?: "",
+                genre = it.details1?.genre ?: "",
+                grade = it.details1?.grade,
+                openDate = it.details1?.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()?.toString()
+            )
+        }
+
+        return ResponseEntity.status(HttpStatus.OK).body(SearchListDto(pages, movieList))
     }
 }

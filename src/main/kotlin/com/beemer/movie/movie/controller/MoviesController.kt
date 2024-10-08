@@ -3,6 +3,7 @@ package com.beemer.movie.movie.controller
 import com.beemer.movie.movie.dto.PosterBannerDto
 import com.beemer.movie.movie.dto.RankListDto
 import com.beemer.movie.movie.dto.ReleaseListDto
+import com.beemer.movie.movie.dto.SearchListDto
 import com.beemer.movie.movie.service.MoviesService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -46,5 +47,14 @@ class MoviesController(private val moviesService: MoviesService) {
         @RequestParam limit: Int
     ) : ResponseEntity<List<ReleaseListDto>> {
         return moviesService.getComingRelease(limit)
+    }
+
+    @GetMapping("/search")
+    fun getScheduleList(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") limit: Int,
+        @RequestParam query: String
+    ) : ResponseEntity<SearchListDto> {
+        return moviesService.getMovieList(page, limit, query)
     }
 }
