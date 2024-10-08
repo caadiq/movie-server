@@ -164,7 +164,7 @@ class MoviesService(
         val limitAdjusted = 1.coerceAtLeast(50.coerceAtMost(limit))
         val pageable = PageRequest.of(page, limitAdjusted)
 
-        val movies = moviesRepository.findAllByMovieNameOrMovieNameEnOrGenreOrKeywords(pageable, query)
+        val movies = moviesRepository.findAllByMovieNameOrMovieNameEnOrGenreOrKeywords(pageable, query.replace(" ", ""))
 
         if (movies.content.isEmpty() && movies.totalElements > 0) {
             throw CustomException(ErrorCode.MOVIE_NOT_FOUND)

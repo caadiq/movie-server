@@ -50,7 +50,7 @@ class MoviesController(private val moviesService: MoviesService) {
     }
 
     @GetMapping("/search")
-    fun getScheduleList(
+    fun getSearchList(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam query: String

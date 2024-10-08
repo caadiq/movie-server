@@ -143,41 +143,35 @@ class MoviesApiService(
         val movieName = movie.movieName
         val movieNameEn = movie.movieNameEn
 
-        val url = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName&ServiceKey=$kmdbApiKey"
+        val url = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName $movieNameEn&ServiceKey=$kmdbApiKey"
+        val urlKo = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieName&ServiceKey=$kmdbApiKey"
         val urlEn = "http://api.koreafilm.or.kr/openapi-data2/wisenut/search_api/search_json2.jsp?collection=kmdb_new2&detail=Y&query=$movieNameEn&ServiceKey=$kmdbApiKey"
 
         webClient.get()
             .uri(url)
             .retrieve()
             .bodyToMono(String::class.java)
+            .onErrorResume {
+                logger.warn("[경고] fetchMovieDetails2FromApi : $url 요청 실패, urlKo로 재시도")
+                webClient.get()
+                    .uri(urlKo)
+                    .retrieve()
+                    .bodyToMono(String::class.java)
+            }
+            .onErrorResume {
+                logger.warn("[경고] fetchMovieDetails2FromApi : $urlKo 요청 실패, urlEn으로 재시도")
+                webClient.get()
+                    .uri(urlEn)
+                    .retrieve()
+                    .bodyToMono(String::class.java)
+            }
             .subscribe({ responseBody ->
                 try {
                     if (!responseBody.contains("인증키")) {
                         val dto: KMDbMovieDetailsDto = objectMapper.readValue(responseBody.replace("\\n", "\\\\n").replace("\\t", "\\\\t"))
 
-                        if (dto.Data.isNotEmpty()) {
+                        if (dto.TotalCount != 0) {
                             saveMovieDetails2(movieCode, dto)
-                        } else {
-                            webClient.get()
-                                .uri(urlEn)
-                                .retrieve()
-                                .bodyToMono(String::class.java)
-                                .subscribe({ responseBodyEn ->
-                                    try {
-                                        if (!responseBodyEn.contains("인증키가")) {
-                                            val dtoEn: KMDbMovieDetailsDto = objectMapper.readValue(responseBodyEn.replace("\\n", "\\\\n").replace("\\t", "\\\\t"))
-
-                                            if (dtoEn.Data.isNotEmpty()) {
-                                                saveMovieDetails2(movieCode, dtoEn)
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        logger.error("[오류] fetchMovieDetails2FromApi (EN) : ${e.message}")
-                                        logger.error("Response Body (EN): $responseBodyEn")
-                                    }
-                                }, { error ->
-                                    logger.error("[오류] fetchMovieDetails2FromApi (EN) : ${error.message}")
-                                })
                         }
                     }
                 } catch (e: Exception) {
