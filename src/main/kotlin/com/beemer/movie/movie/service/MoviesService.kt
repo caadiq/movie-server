@@ -191,8 +191,8 @@ class MoviesService(
                 movieCode = it.movieCode,
                 movieName = it.movieName ?: "",
                 posterUrl = it.details2?.posterUrl?.split("|")?.firstOrNull() ?: "",
-                genre = it.details1?.genre ?: "",
-                grade = it.details1?.grade,
+                genre = it.details1?.genre ?: it.details2?.genres ?: "",
+                grade = it.details1?.grade ?: it.details2?.rating,
                 openDate = it.details1?.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()?.toString()
             )
         }
