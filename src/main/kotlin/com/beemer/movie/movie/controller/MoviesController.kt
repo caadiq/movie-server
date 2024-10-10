@@ -1,5 +1,6 @@
 package com.beemer.movie.movie.controller
 
+import com.beemer.movie.movie.dto.MovieDetailsDto
 import com.beemer.movie.movie.dto.PosterBannerDto
 import com.beemer.movie.movie.dto.RankListDto
 import com.beemer.movie.movie.dto.ReleaseListDto
@@ -56,5 +57,12 @@ class MoviesController(private val moviesService: MoviesService) {
         @RequestParam query: String
     ) : ResponseEntity<SearchListDto> {
         return moviesService.getMovieList(page, limit, query)
+    }
+
+    @GetMapping("/details")
+    fun getMovieDetails(
+        @RequestParam code: String
+    ) : ResponseEntity<MovieDetailsDto> {
+        return moviesService.getMovieDetails(code)
     }
 }

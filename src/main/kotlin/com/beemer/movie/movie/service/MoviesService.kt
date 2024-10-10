@@ -3,6 +3,7 @@ package com.beemer.movie.movie.service
 import com.beemer.movie.common.dto.PageDto
 import com.beemer.movie.common.exception.CustomException
 import com.beemer.movie.common.exception.ErrorCode
+import com.beemer.movie.movie.dto.MovieDetailsDto
 import com.beemer.movie.movie.dto.PosterBannerDto
 import com.beemer.movie.movie.dto.RankList
 import com.beemer.movie.movie.dto.RankListDto
@@ -198,5 +199,33 @@ class MoviesService(
         }
 
         return ResponseEntity.status(HttpStatus.OK).body(SearchListDto(pages, movieList))
+    }
+
+    fun getMovieDetails(movieCode: String) : ResponseEntity<MovieDetailsDto> {
+        val movie = moviesRepository.findById(movieCode)
+            .orElseThrow { CustomException(ErrorCode.MOVIE_NOT_FOUND) }
+
+        if (movie.details1 == null) {
+            moviesApiService.fetchMovieDetails1FromApi(movieCode)
+        }
+
+        if (movie.details2 == null) {
+            moviesApiService.fetchMovieDetails2FromApi(movieCode)
+        }
+
+        val movieDetailsDto = MovieDetailsDto(
+            movieCode = movie.movieCode,
+            movieName = movie.movieName ?: "",
+            movieNameEn = movie.movieNameEn,
+            openDate = movie.details1?.openDate?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate(),
+            posterUrl = movie.details2?.posterUrl?.split("|")?.firstOrNull() ?: "",
+            genres = movie.details1?.genre?.split(",") ?: movie.details2?.genres?.split(",") ?: emptyList(),
+            runTime = movie.details1?.runtime,
+            nation = movie.details2?.nation,
+            grade = movie.details1?.grade ?: movie.details2?.rating,
+            plot = movie.details2?.plot
+        )
+
+        return ResponseEntity.status(HttpStatus.OK).body(movieDetailsDto)
     }
 }
