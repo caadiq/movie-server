@@ -1,9 +1,11 @@
 package com.beemer.movie.movie.dto
 
+import com.beemer.movie.common.dto.CountDto
 import com.beemer.movie.common.dto.PageDto
 
 data class SearchListDto(
     val page: PageDto,
+    val count: CountDto,
     val movies: List<SearchList>
 )
 

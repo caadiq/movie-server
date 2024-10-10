@@ -1,5 +1,6 @@
 package com.beemer.movie.movie.service
 
+import com.beemer.movie.common.dto.CountDto
 import com.beemer.movie.common.dto.PageDto
 import com.beemer.movie.common.exception.CustomException
 import com.beemer.movie.common.exception.ErrorCode
@@ -187,6 +188,11 @@ class MoviesService(
 
         val pages = PageDto(prevPage, currentPage, nextPage)
 
+        val totalCount = movies.totalElements
+        val currentPageCount = movies.numberOfElements
+
+        val counts = CountDto(totalCount, currentPageCount)
+
         val movieList = movies.content.map {
             SearchList(
                 movieCode = it.movieCode,
@@ -198,7 +204,7 @@ class MoviesService(
             )
         }
 
-        return ResponseEntity.status(HttpStatus.OK).body(SearchListDto(pages, movieList))
+        return ResponseEntity.status(HttpStatus.OK).body(SearchListDto(pages, counts, movieList))
     }
 
     fun getMovieDetails(movieCode: String) : ResponseEntity<MovieDetailsDto> {
